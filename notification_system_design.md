@@ -15,66 +15,63 @@ Real-Time Subscriptions: It connects the user to a feed so they get notification
 A. Fetch Student Notifications
 
 Endpoint: `GET /api/v1/notifications`
-Headers:
+* Headers:
 
-```
 Authorization: Bearer <access_token>
 Accept: application/json
-```
 
 Query Parameters:
 
-* `status`: The user can choose to see notifications that are read or unread.
-* `page`: The user can choose which page of notifications they want to see. If they do not choose it will show the page.
-* `limit`: The user can choose how notifications they want to see at a time. If they do not choose it will show 20 notifications.
+* status: The user can choose to see notifications that are read or unread.
+* page: The user can choose which page of notifications they want to see. If they do not choose it will show the page.
+* limit: The user can choose how notifications they want to see at a time. If they do not choose it will show 20 notifications.
 
-Response Body (`200 OK`):
-```json
+
+Response Body ('200 OK'):
+
 {
-"success":
-"page": 1
-"limit": 20
-"totalNotifications": 145
-"data": [
-{
-     "notificationID": "n_7f2b91a0-4d32-4113-9cf6-1c88d8f56efb"
-     "notificationType": "Placement"
-     "title": "New Placement Drive"
-     "message": "AffordMed interview slots are now open."
-     "isRead":
-     "createdAt": "2026-06-05T09:40:00Z"
+     "success":
+     "page": 1
+     "limit": 20
+     "totalNotifications": 145
+     "data": [
+     {
+            "notificationID": "n_7f2b91a0-4d32-4113-9cf6-1c88d8f56efb"
+            "notificationType": "Placement"
+            "title": "New Placement Drive"
+            "message": "AffordMed interview slots are now open."
+            "isRead":
+            "createdAt": "2026-06-05T09:40:00Z"
+     }]
+
 }
 
-]
-
-}
-
-```
 # B. Mark Notification as Read
 
-Endpoint: `PATCH /api/v1/notifications/:id/read`
-Headers:
+* Endpoint: "PATCH /api/v1/notifications/:id/read"
 
-```
+* Headers:
+
 Authorization: Bearer <access_token>
 Content-Type: application/json
-```
-Response Body (`200 OK`):
-```json
+
+* Response Body ('200 OK'):
+
 {
-"success":
-"message": "Notification updated successfully."
-"data": {
-"notificationID": "n_7f2b91a0-4d32-4113-9cf6-1c88d8f56efb"
-"isRead":
-"readAt": "2026-06-05T10:02:11Z"
+    "success":
+    "message": "Notification updated successfully."
+    "data": {
+    "notificationID": "n_7f2b91a0-4d32-4113-9cf6-1c88d8f56efb"
+    "isRead":
+    "readAt": "2026-06-05T10:02:11Z"
 }
 
 }
 
-```
+
 # 3. Real-Time Notification Mechanism
 To send notifications to logged-in students away the system will use WebSockets with a library like Socket.io and Node.js.
+
 1.Connection Lifecycle:When a student logs in their computer starts a connection with the server.
 2.Authentication: The students computer sends a token to the server so it knows who the student is.
 3.Dispatch: The server sends notifications to the students computer away when it gets a new notification, for that student.
@@ -96,7 +93,7 @@ Complex Indexing Capability: This feature helps us optimize fields like student 
 
 # 2. Database Schema
 
-```sql
+sql students table ---
 
 CREATE TABLE students (
 
@@ -112,6 +109,8 @@ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
 );
 
+sql notifications table----
+ 
 CREATE TABLE notifications (
 
 notification_id VARCHAR(50) PRIMARY KEY,
@@ -149,18 +148,18 @@ We have a lot of logs in the database. 5,000,000 Of them. If the database does n
 
 We need to make some changes to the query. We should add a Composite Index that covers the columns we use in the WHERE clause and the sorting keys. Here is what we can do:
 
-```sql
+
+command --
 
 CREATE INDEX, idx_student_unread_date ON notifications (student_id, is_read, created_at ASC);
 
-```
-Optimized structured query designed to search for all students who received a Placement category notification within the trailing 7-day period:
 
-SELECT DISTINCT s.student_id, s.name, s.email, s.roll_no 
-FROM students s
-JOIN notifications n ON s.student_id = n.student_id
-WHERE n.notification_type = 'Placement'
-  AND n.created_at >= NOW() - INTERVAL 7 DAY;
+* Optimized structured query designed to search for all students who received a Placement category notification within the trailing 7-day period:
+
+      SELECT DISTINCT s.student_id, s.name, s.email, s.roll_no 
+      FROM students s  JOIN notifications n ON s.student_id = n.student_id
+      WHERE n.notification_type = 'Placement'
+      AND n.created_at >= NOW() - INTERVAL 7 DAY;
 
 
   ------------------------------------------------------------------------------------
@@ -235,39 +234,62 @@ Producer Of doing tasks directly the main app creates a small event job for each
 
 Independent worker processes take these jobs from the queue. If an email server times out for some students only those jobs are sent to a *Dead Letter Queue (DLQ)** or scheduled for a retry without stopping the main platform.
 
-# 4. Redesigned Pseudocode
-
-```text
+# 4. Pseudocode
 
 function notify_all(student_ids: array, message: string):
-for student_id in student_ids:
-job_payload = {
-"student_id": student_id
-"message": message,
-"attempt": 1
-}
-
-
-push_to_message_queue("notification_jobs" job_payload)
-
+     for student_id in student_ids:
+          job_payload = {
+          "student_id": student_id
+          "message": message,
+          "attempt": 1
+          }
+          push_to_message_queue("notification_jobs" job_payload)
 
 function notification_worker_process():
-while true:
-job = pop_from_message_queue("notification_jobs")
-if job is null:
+    while true:
+         job = pop_from_message_queue("notification_jobs")
+    if job is null:
+         wait()
+         continue
+    try:
 
-     wait a bit
-     continue
-try:
-    save_to_db(job.student_id, job.message)
-    push_to_app(job.student_id, job.message)
-    email_status = send_email(job.student_id, job.message)
-    if email_status == failed:
-         raise an error
-except Exception as e:
-    if job.attempt is, than 3:
-       job.attempt = job.attempt. 1
-       Push_to_message_queue("notification_jobs" job)
-    else:
-       push_to_dead_letter_queue("failed_notifications" job)
-```
+        save_to_db(job.student_id, job.message)
+        push_to_app(job.student_id, job.message)
+        email_status = send_email(job.student_id, job.message)
+        if email_status == failed:
+            raise Exception("Email API transmission failed")
+
+    except Exception as e:
+        if job.attempt < 3:  
+             job.attempt = job.attempt +1
+             push_to_message_queue("notification_jobs" job)
+        else:
+             push_to_dead_letter_queue("failed_notifications" job)
+
+----------------------------------------------------------------------------
+
+# Stage 6: Priority Queue Processing & Real-Time Top K Maintenance
+
+1. Architectural Strategy for Real-Time Priority Tracking
+
+To keep track of the 10 most important unread notifications when we get a lot of them all the time the application uses a special kind of list called a Min-Heap Priority Queue that can only hold 10 things. This Priority Queue is stored in the computers memory.
+
+Q.Why use a Min-Heap of regular sorting?
+
+Sorting a list:When we sort a list we have to sort the whole thing every time we add or remove something and that takes a lot of time.
+
+Fixed-Size Min-Heap:When we use a Min-Heap it is much faster to add something. We can do it in a lot time. We make sure the Min-Heap only has 10 things in it. The important thing is always at the top. If a new notification is more important than the one, at the top we get rid of the one and put the new one in its place. This happens quickly.
+
+2. Priority Weights Algorithm Matrix
+
+We sort the notifications based on what kind of notification they're how important they are. If two notifications are the kind we use the time they were made to figure out which one is more important.
+
+Priority Score = (Type Weight * 10^13) + Timestamp
+
+Based on Notification Type ,Weight Multiplier , Description:
+
+1.Placement - 3 -This is the important kind of notification.
+2.Result    - 2 -This kind of notification is pretty important.
+3.Event     - 1 - This is a kind of notification.
+
+-------------------------------------------------
