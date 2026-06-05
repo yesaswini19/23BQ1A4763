@@ -163,3 +163,43 @@ WHERE n.notification_type = 'Placement'
   AND n.created_at >= NOW() - INTERVAL 7 DAY;
 
   
+  ------------------------------------------------------------------------------------
+  # Stage 4: High-Load Performance and Caching Strategy
+
+# 1. Core Solutions for Database Overwhelm
+To stop the database from getting overwhelmed on every page load we need to implement some solutions.
+Here are a few ideas:
+
+* In-Memory Caching using Redis: We can store unread notifications for each student directly in memory. This way when a user loads a page the system reads from the fast memory layer of querying the database disk.
+
+* Service Worker and Client-Side Caching: We can cache the last received notification array directly in the students browser storage like IndexedDB or LocalStorage. The user interface loads the cached data instantly while checking the server for updates in the background.
+
+#2. Architectural Performance Tradeoffs
+
+Strategy A: Using Redis for In-Memory Caching----
+
+The good things about this approach are:
+
+* It massively reduces database read operations, which prevents connection pool exhaustion.
+
+* It provides -millisecond response latency for fetching notification feeds.
+
+However there are some challenges:
+
+* We need to handle cache invalidation. When a student marks a notification as read the backend must. Update both the Redis key and the persistent database row. This is to prevent out-of-sync states.
+
+* Running a high-availability Redis cluster requires system memory and hosting resources, which increases infrastructure costs.
+
+# Strategy B: Client-Side Storage with Background Sync
+
+The advantages of this approach are:
+
+* It has zero server overhead for initial page loads if data is served from browser storage.
+
+* It provides an instant user interface experience under poor network conditions.
+
+However there are some tradeoffs:
+
+* If background syncing lags students might see notification statuses, for a short period.
+
+* The storage persistence depends heavily on browser clear-cache policies and user device memory constraints.
