@@ -119,3 +119,56 @@ To send notifications to logged-in students away the system will use WebSockets 
 2. **Authentication:** The students computer sends a token to the server so it knows who the student is.
 
 3. **Dispatch:** The server sends notifications to the students computer away when it gets a new notification, for that student.
+
+
+------------------------------------------------------------------------------------------
+
+# Stage 2: Persistent Storage and Schema Design
+
+## 1. Storage Choice: Relational Database (MySQL / PostgreSQL)
+
+We choose a Relational Database like MySQL or PostgreSQL for our storage needs.
+Here are the reasons why:
+* **ACID Compliance:** This is important because it ensures that our transactions are completed properly without any issues.
+
+* **Structured Relations:** We have relationships between Students and individual Notifications which makes it easy to manage.
+
+* **Complex Indexing Capability:** This feature helps us optimize fields like student filters and timestamps.
+
+## 2. Database Schema
+
+```sql
+
+CREATE TABLE students (
+
+student_id VARCHAR(50) PRIMARY KEY,
+
+name VARCHAR(100) NOT REQUIRED TO BE NULL,
+
+email VARCHAR(150) UNIQUE AND NOT NULL,
+
+roll_no VARCHAR(20) UNIQUE AND NOT NULL
+
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+);
+
+CREATE TABLE notifications (
+
+notification_id VARCHAR(50) PRIMARY KEY,
+
+student_id VARCHAR(50) NOT NULL
+
+notification_type Can be 'Event' 'Result' or 'Placement'
+
+title VARCHAR(200) NOT REQUIRED TO BE NULL
+
+message TEXT NOT REQUIRED TO BE NULL
+
+is_read BOOLEAN DEFAULT FALSE AND NOT NULL
+
+created_at TIMESTAMP DEFAULT, CURRENT_TIMESTAMP
+
+FOREIGN KEY (student_id) REFERENCES students(student_id) ON CASCADE
+
+);
