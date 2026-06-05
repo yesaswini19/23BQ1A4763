@@ -162,7 +162,7 @@ JOIN notifications n ON s.student_id = n.student_id
 WHERE n.notification_type = 'Placement'
   AND n.created_at >= NOW() - INTERVAL 7 DAY;
 
-  
+
   ------------------------------------------------------------------------------------
   # Stage 4: High-Load Performance and Caching Strategy
 
@@ -203,3 +203,71 @@ However there are some tradeoffs:
 * If background syncing lags students might see notification statuses, for a short period.
 
 * The storage persistence depends heavily on browser clear-cache policies and user device memory constraints.
+
+---------------------------------------------------------------------------------------
+# Stage 5: Distributed Event Processing & Message Queues
+
+1.Shortcomings of the Current Implementation--
+
+The loop implementation has big problems when handling 50,000 students:
+
+* Synchronous Bottleneck:Doing HTTP API calls (`send_email`) and database inserts (`save_to_db`) one by one in a single loop slows things down. If each iteration takes 100ms processing 50,000 users would take over 80 minutes, which's too slow.
+
+* Single Point of Failure:If the email API fails or times out for some students, the rest of the students in the list won't get their database inserts or in-app push messages.
+
+* Lack of Fault Tolerance:When 200 student emails failed those events were lost because theres no way to retry them or track their state.
+
+# 2. Process Decoupling Strategy
+Saving notifications to the database and sending emails should happen separately not together.
+
+Concerns:
+
+* Immediate System Action:The database layer should be fast and lightweight.
+
+* Asynchronous Jobs: Heavy network operations like sending emails should be done separately using a message broker (like RabbitMQ or AWS SQS). This way if one fails it won't affect the system.
+
+# 3. Redesigned System Architecture
+To make this process reliable and fast we're breaking down the loop into a Publisher-Worker model using background queues.
+
+Producer Of doing tasks directly the main app creates a small event job for each student and pushes them into a queue.
+
+#Background Consumer Workers
+
+Independent worker processes take these jobs from the queue. If an email server times out for some students only those jobs are sent to a *Dead Letter Queue (DLQ)** or scheduled for a retry without stopping the main platform.
+
+# 4. Redesigned Pseudocode
+
+```text
+
+function notify_all(student_ids: array, message: string):
+for student_id in student_ids:
+job_payload = {
+"student_id": student_id
+"message": message,
+"attempt": 1
+}
+
+
+push_to_message_queue("notification_jobs" job_payload)
+
+
+function notification_worker_process():
+while true:
+job = pop_from_message_queue("notification_jobs")
+if job is null:
+
+     wait a bit
+     continue
+try:
+    save_to_db(job.student_id, job.message)
+    push_to_app(job.student_id, job.message)
+    email_status = send_email(job.student_id, job.message)
+    if email_status == failed:
+         raise an error
+except Exception as e:
+    if job.attempt is, than 3:
+       job.attempt = job.attempt. 1
+       Push_to_message_queue("notification_jobs" job)
+    else:
+       push_to_dead_letter_queue("failed_notifications" job)
+```
